@@ -1,33 +1,61 @@
 Attribute VB_Name = "classUtil"
+Option Base 0
+
 Sub addPrp(nm, tp, Optional isset = False)
 End Sub
 
-Sub insertIfcPrefix(ifcn)
-End Sub
-
-Function prcReplace(sLine, prc, ifc)
-    Dim ret
-    Dim i, np, ni, nl, pos
-    np = Len(prc)
-    ni = Len(ifc)
-    nl = Len(sLine)
-    ret = sLine
-    pos = 1
-    Do
-        If pos > nl Then Exit Do
-        i = InStr(pos, ret, prc)
-        If i = 0 Then Exit Do
-        If isIfcProc(ret, i, np) Then
-            ret = preFixIfc(ret, ifc, i)
-            pos = i + ni + 2
-        Else
-            pos = i + np
+Function disposeProc(tp, cmpn, procName, Optional knd = 0, Optional sCode = "")
+    'tp "get","del","replace"
+    Dim cmp
+    Dim lineStart, lineDef, lineContent, lineEnd, defcnt, linecnt, i
+    Dim xdef, xcnt, xend
+    disposeProc = ""
+    tp = LCase(tp)
+    If tp = "del" Then sCode = ""
+    Set cmp = ActiveWorkbook.VBProject.VBComponents(cmpn)
+    With cmp.CodeModule
+        linecnt = .ProcCountLines(procName, knd)
+        lineStart = .ProcStartLine(procName, knd)
+        lineDef = .procBodyLine(procName, knd)
+        lineEnd = lineStart + linecnt - 1
+        endwords = Array("End Function", "End Sub", "End Property")
+        For i = 1 To linecnt - 1
+            str0 = Trim(.Lines(lineEnd, 1))
+            For Each word In endwords
+                If str0 = word Then GoTo forEnd
+            Next word
+            lineEnd = lineEnd - 1
+        Next i
+forEnd:
+        defcnt = 0
+        Do While lineDef + defcnt < lineEnd
+            strLine = Trim(.Lines(lineDef + defcnt, 1))
+            defcnt = defcnt + 1
+            If Not strLine Like "* _" Then
+                Exit Do
+            End If
+        Loop
+        lineContent = lineDef + defcnt
+        If tp = "get" Then
+            xdef = .Lines(lineDef, lineContent - lineDef)
+            xcnt = .Lines(lineContent, lineEnd - lineContent)
+            xend = .Lines(lineEnd, 1)
+            disposeProc = Array(xdef, xcnt, xend)
+            Exit Function
         End If
-    Loop
-    prcReplace = ret
+        On Error Resume Next
+        If tp = "del" Or tp = "replace" Then
+            Call .DeleteLines(lineContent, lineEnd - lineContent)
+            If tp = "replace" Then
+                Call .InsertLines(lineContent, sCode)
+            End If
+        End If
+        On Error GoTo 0
+    End With
+    Set cmp = Nothing
 End Function
 
-Function isIfcProc(sLine, pos, n)
+Function isLexicallyProc(sLine, pos, n)
     Dim n0, c1, c2
     Dim ret
     n0 = Len(sLine)
@@ -35,18 +63,18 @@ Function isIfcProc(sLine, pos, n)
     If pos + n > n0 Then ret = False
     If n > 1 Then
         c1 = Mid(lStr, n - 1, 1)
-        If c1 <> " " And c1 <> "(" And c1 <> ")" Then
+        If c1 <> " " And c1 <> "(" Then
             ret = False
         End If
     End If
     pos2 = pos + n - 1
     If pos2 < n0 Then
         c2 = Mid(lStr, pos2, 1)
-        If c2 <> " " And c2 <> "(" And c2 <> ")" Then
+        If c2 <> " " And c2 <> "," And c2 <> "(" And c2 <> ")" Then
             ret = False
         End If
     End If
-    isIfcProc = ret
+    isLexicallyProc = ret
 End Function
 
 Function addIfcPreFix(sLine, ifc, pos)
@@ -59,41 +87,37 @@ Function addIfcPreFix(sLine, ifc, pos)
     addIfcPreFix = ret
 End Function
 
-Function ridIfcPreFix(sLine, ifc)
+Function delIfcPreFix(sLine, ifc)
     Dim ret
     ret = Replace(sLine, ifc & "_", "")
     ret = ifc & "_" & sLine
-    ridIfcPreFix = ret
+    delIfcPreFix = ret
 End Function
 
-Sub testcode()
-    Call mkInterFace(, "LogWriter")
-End Sub
-
-Sub testcode1()
-    Call mkSubClass("SpecialLogWriter", , "LogWriter")
-End Sub
-
-Sub mkInterFace(Optional ifcn As String = "", Optional clsn As String)
-    If ifcn = "" Then ifcn = mkInterfaceName(clsn)
+Sub mkInterFace(ifcn As String, ParamArray ArgClsns())
+    clsns = ArgClsns
+    clsn = clsns(0)
+    If ifcn = "" Then ifcn = defaultInterfaceName(CStr(clsn))
     Set cmps = ActiveWorkbook.VBProject.VBComponents
     Set sCmp = cmps(clsn)
     Set tCmp = cmps.Add(2)
     tCmp.Name = ifcn
     Call cpCode(sCmp, tCmp, "all")
     fncs = getModProcs(ifcn)
-    For Each fnc In fncs(0)
-        Call delProcCode(fnc, 0, ifcn)
+    For Each fnc In fncs(0).keys
+        Call disposeProc("del", ifcn, fnc)
     Next
     For Each prp In fncs(1).keys
         For Each knd In fncs(1)(prp)
-            Call delProcCode(prp, knd, ifcn)
+            Call disposeProc("del", ifcn, prp, knd)
         Next
     Next
 End Sub
 
-Sub mkSubClass(sclsn As String, Optional ifcn As String = "", Optional clsn As String)
-    If ifcn = "" Then ifcn = mkInterfaceName(clsn)
+Sub mkSubClass(sclsn As String, ifcn As String, ParamArray ArgClsns())
+    clsns = ArgClsns
+    clsn = clsns(0)
+    If ifcn = "" Then ifcn = defaultInterfaceName(CStr(clsn))
     Set cmps = ActiveWorkbook.VBProject.VBComponents
     Set sCmp = cmps(clsn)
     Set tCmp = cmps.Add(2)
@@ -102,74 +126,53 @@ Sub mkSubClass(sclsn As String, Optional ifcn As String = "", Optional clsn As S
     fncs = getModProcs(ifcn)
 End Sub
 
-Function mkInterfaceName(clsn As String)
+Function defaultInterfaceName(clsn As String)
     n = InStr(clsn, "_")
     If n > 0 Then
         ifc = Left(clsn, n - 1)
     Else
         ifc = "I" & clsn
     End If
-    mkInterfaceName = ifc
+    defaultInterfaceName = ifc
 End Function
 
 Sub cpCode(sCmp, tCmp, Optional part = "all")
     With sCmp.CodeModule
         Select Case LCase(part)
             Case "all"
-                scode = .Lines(1, .CountOfLines)
+                sCode = .Lines(1, .CountOfLines)
             Case "dcl"
-                scode = .Lines(1, .CountOfDeclarationLines)
+                sCode = .Lines(1, .CountOfDeclarationLines)
             Case "prc"
-                scode = .Lines(.CountOfDeclarationLines + 1, .CountOfLines)
+                sCode = .Lines(.CountOfDeclarationLines + 1, .CountOfLines)
             Case Else
         End Select
     End With
-    If scode <> "" Then
-        tCmp.CodeModule.AddFromString scode
+    If sCode <> "" Then
+        tCmp.CodeModule.AddFromString sCode
     End If
-End Sub
-
-Sub delProcCode(procName, knd, cmpn)
-    Set cmp = ActiveWorkbook.VBProject.VBComponents(cmpn)
-    With cmp.CodeModule
-        lineDef = .procBodyLine(procName, knd)
-        lineEnd = .ProcCountLines(procName, knd) + .ProcStartLine(procName, knd)
-        cnt = 0
-        Do While lineDef + cnt < lineEnd
-            strLine = Trim(.Lines(lineDef + cnt, 1))
-            cnt = cnt + 1
-            If Not strLine Like "* _" Then
-                Exit Do
-            End If
-        Loop
-        If lineEnd - lineDef - cnt - 1 > 0 Then
-            Call .DeleteLines(lineDef + cnt, lineEnd - lineDef - cnt - 1)
-        End If
-    End With
-    Set cmp = Nothing
 End Sub
 
 Function getModProcs(modn As String)
     bn = ActiveWorkbook.Name
     Dim procName
-    Dim procLineNum       As Long
-    Dim lineCnt           As Long
-    Dim fncClc
+    Dim procLineNum    As Long
+    Dim linecnt      As Long
+    Dim fncDic
     Dim prpDic
-    Set fncClc = New Collection
+    Set fncDic = CreateObject("Scripting.Dictionary")
     Set prpDic = CreateObject("Scripting.Dictionary")
     On Error Resume Next
     Set cmp = ActiveWorkbook.VBProject.VBComponents(modn)
     With cmp.CodeModule
         If .CountOfLines > 0 Then
-            mdlType = getModType(cmp)
             procName = ""
-            For lineCnt = .CountOfDeclarationLines + 1 To .CountOfLines
-                If procName <> .ProcOfLine(lineCnt, 0) Then
-                    procName = .ProcOfLine(lineCnt, 0)
+            For linecnt = .CountOfDeclarationLines + 1 To .CountOfLines
+                If procName <> .ProcOfLine(linecnt, 0) Then
+                    procName = .ProcOfLine(linecnt, 0)
                     procLineNum = tryToGetProcLineNum(cmp, procName, 0)
                     If procLineNum <> 0 Then
-                        fncClc.Add (procName)
+                        Call fncDic.Add(procName, 0)
                     Else
                         If Not prpDic.exists(procName) Then
                             Call prpDic.Add(procName, New Collection)
@@ -182,10 +185,10 @@ Function getModProcs(modn As String)
                         End If
                     End If
                 End If
-            Next lineCnt
+            Next linecnt
         End If
     End With
-    getModProcs = Array(fncClc, prpDic)
+    getModProcs = Array(fncDic, prpDic)
     Set cmp = Nothing
 End Function
 
