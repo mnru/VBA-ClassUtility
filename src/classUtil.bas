@@ -202,3 +202,55 @@ End Function
 Private Function lenAry(ary)
     lenAry = UBound(ary) - LBound(ary) + 1
 End Function
+
+Function mkPrp(x, tp, symbol)
+  symbol = LCase(symbol)
+  Dim sc, gls, o, v
+  Dim ret(1 To 3)
+  sc = IIf(symbol Like "*_", "Public", "Private")
+ 
+  gls = UCase(Left(symbol, 1)) & "et"
+  o = IIf(gls = "Set" Or InStr(symbol, "o") > 0, "Set ", "")
+  v = IIf(gls = "Let" Or (gls = "Set" And InStr(symbol, "v") > 0), "ByVal ", "")
+ 
+ 
+  tmp = sc & " Property " & gls & " " & x
+  If gls = "Get" Then
+    tmp = tmp & "() As " & tp
+  Else
+    tmp = tmp & "(" & v & x & "_ AS " & tp & ")"
+  End If
+  ret(1) = tmp
+  tmp = o
+  If gls = "Get" Then
+    tmp = tmp & x & " = m_" & x
+  Else
+    tmp = tmp & "m_" & x & " = " & x & "_"
+  End If
+  ret(2) = tmp
+  ret(3) = "End Property"
+ 
+  mkPrp = Join(ret, vbCrLf)
+ 
+End Function
+
+
+Function getNoOptionLine(modn)
+  Dim ret, i
+  ret = 0
+  Set cmp = ActiveWorkbook.VBProject.VBComponents(modn)
+  With cmp.CodeModule
+    dcln = .CountOfDeclarationLines
+    For i = 1 To decln
+      sLine = Trim(.Lines(i, 1))
+      If sLine Like "Option " Then
+        ret = ret + 1
+      Else
+        Exit For
+      End If
+    Next i
+   
+  End With
+  getNoOptionLine = ret
+ 
+End Function
