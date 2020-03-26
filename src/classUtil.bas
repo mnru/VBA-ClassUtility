@@ -248,7 +248,7 @@ Function mkPrpStatement(x, tp, symbol)
     mkPrpStatement = Join(ret, vbCrLf)
 End Function
 
-Sub mkPrep()
+Sub mkPrp()
     Dim cmp
     Dim sLine
     Dim i, n
