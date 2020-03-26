@@ -26,5 +26,3 @@ Sub testprp()
     Debug.Print mkPrpStatement("abc", "", "sov")
     Debug.Print mkPrpStatement("abc", "", "l")
 End Sub
-
-

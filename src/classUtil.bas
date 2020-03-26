@@ -76,7 +76,7 @@ Sub mkInterFace(ifcn As String, ParamArray ArgClsns())
     Set cmps = ActiveWorkbook.VBProject.VBComponents
     Set sCmp = cmps(clsn)
     Set tCmp = cmps.Add(2)
-    tCmp.Name = ifcn
+    tCmp.name = ifcn
     Call cpCode(clsn, ifcn, "all")
     fncs = getModProcs(ifcn)
     For Each fnc In fncs(0).keys
@@ -96,7 +96,7 @@ Sub mkSubClass(sclsn As String, ifcn As String, ParamArray ArgClsns())
     Set cmps = ActiveWorkbook.VBProject.VBComponents
     Set sCmp = cmps(clsn)
     Set tCmp = cmps.Add(2)
-    tCmp.Name = sclsn
+    tCmp.name = sclsn
     Call cpCode(clsn, sclsn, "all")
     fncs = getModProcs(ifcn)
 End Sub
@@ -123,7 +123,7 @@ Sub cpCode(smodn, tmodn, Optional part = "all")
 End Sub
 
 Function getModProcs(modn As String)
-    bn = ActiveWorkbook.Name
+    bn = ActiveWorkbook.name
     Dim procName
     Dim procLineNum  As Long
     Dim linecnt   As Long
@@ -223,8 +223,21 @@ End Function
 
 Function mkPrpStatement(x, tp, symbol)
     symbol = LCase(symbol)
+    Dim ibol
+    Dim st
+    Dim sts(1 To 3)
     Dim sc, gls, o, v
-    Dim ret(1 To 3)
+    sc = IIf(symbol Like "*_", "Public", "Private")
+    ibol = Left(symbol, 1) = "i"
+    If ibol Then
+        If symbol = "i" Or symbol = "i_" Then
+            st = sc & " " & tp
+            mkPrpStatement = Array(ibol, st)
+            Exit Function
+        Else
+            symbol = Right(symbol, Len(symbol) - 1)
+        End If
+    End If
     sc = IIf(symbol Like "*_", "Public", "Private")
     gls = UCase(Left(symbol, 1)) & "et"
     o = IIf(gls = "Set" Or InStr(symbol, "o") > 0, "Set ", "")
@@ -236,16 +249,20 @@ Function mkPrpStatement(x, tp, symbol)
     Else
         tmp = tmp & "(" & v & x & "_" & tpp & ")"
     End If
-    ret(1) = tmp
+    sts(1) = tmp
     tmp = o
     If gls = "Get" Then
         tmp = tmp & x & " = m_" & x
     Else
         tmp = tmp & "m_" & x & " = " & x & "_"
     End If
-    ret(2) = tmp
-    ret(3) = "End Property"
-    mkPrpStatement = Join(ret, vbCrLf)
+    sts(2) = tmp
+    sts(3) = "End Property"
+    If ibol Then
+        mkPrpStatement = Array(ibol, sts(1) & vbCrLf & sts(3))
+    Else
+        mkPrpStatement = Array(ibol, Join(sts, vbCrLf))
+    End If
 End Function
 
 Sub mkPrp()
@@ -253,9 +270,9 @@ Sub mkPrp()
     Dim sLine
     Dim i, n
     Set cmp = Application.VBE.SelectedVBComponent
-    Debug.Print cmp.Name
+    Debug.Print cmp.name
     With cmp.CodeModule
-        For i = 1 To .CountOfDeclarationLines
+        For i = .CountOfDeclarationLines To 1 Step -1
             sLine = .Lines(i, 1)
             n = InStr(sLine, "'")
             If n = 0 Then GoTo endfor
@@ -272,12 +289,12 @@ Sub mkPrp()
                 s4 = Trim(ary1(3))
             End If
             If Left(s2, 2) = "m_" Then s2 = Right(s2, Len(s2) - 2)
-            For Each elm In ary2
-                s = Trim(elm)
+            For j = UBound(ary2) To LBound(ary2) Step -1
+                s = Trim(ary2(j))
                 If s <> "" Then
-                    .AddFromString (mkPrp(s2, s4, s))
+                    .AddFromString (vbCrLf & mkPrpStatement(s2, s4, s)(1))
                 End If
-            Next elm
+            Next j
 endfor:
         Next i
     End With
