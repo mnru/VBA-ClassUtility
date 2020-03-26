@@ -14,25 +14,25 @@ Private m_y As Object
 Private m_abc As Long
 
 Private Property Let x(ByVal x_ As String)
-  m_x = x_
+    m_x = x_
 End Property
 
 Private Property Set y(y_ As Object)
-  Set m_y = y_
+    Set m_y = y_
 End Property
 
 Private Property Get x() As String
-  x = m_x
+    x = m_x
 End Property
 
 Private Property Get y() As Object
-  Set y = m_y
+    Set y = m_y
 End Property
 
 Private Property Set abc(ByVal abc_ As Long)
-  Set m_abc = abc_
+    Set m_abc = abc_
 End Property
 
 Private Property Let abc(ByVal abc_ As Long)
-  m_abc = abc_
+    m_abc = abc_
 End Property
